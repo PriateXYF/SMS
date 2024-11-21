@@ -1,8 +1,8 @@
 from module.api import Script
+from typing import Annotated
 
+class Reverse(Script):
+    """将字符串倒序反转"""
 
-class reverse(Script):
-    """将给定字符串两个一组在前面添加 % 形成 URLEncode 格式字符串"""
-
-    def run(self, text: str):
+    def run(self, text: Annotated[str, "需要处理的文本"]):
         return text[::-1]

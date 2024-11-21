@@ -1,39 +1,89 @@
 import inspect
 import os
+import re
 import importlib
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, get_origin, get_args, Annotated
 
+# 将脚本类名解析为脚本名称
+def parse_classname(s : str):
+    # 检查是否全为小写
+    if s.islower():
+        return s
+    # 使用正则表达式拆分大写字母，并转换为小写
+    result = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', s)
+    return result.lower()
 
 class Script(ABC):
     # 父类定义的必须覆盖的属性
     attributes = {
-        # "name": str,
+        "name": str,
     }
+    # run 方法中的参数列表
+    params = []
 
     # 子类必须实现 run 方法
     @abstractmethod
     def run(self, *args, **kwargs):
         pass
+    # 实际上父类执行的方法
+    def do(self, *args, **kwargs):
+        return self.run(*args, **kwargs)
+    
+    def help(self):
+        usage = f"""Usage: sms.py use {self.name} [OPTIONS]\n\n\t{self.__doc__}\n
+Options:\n\t--{"\n\t--".join([ f'{param[0]} [{param[1].__name__}] {param[2][0]} {"" if param[3] is None else f"(default:{param[3]})"}' for param in self.params ])}
+        """
+        print(usage)
 
     # 定义一个检查方法，用于验证子类是否覆盖了特定的属性
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        for attr, attr_type in cls.attributes.items():
-            # 检查子类是否覆盖属性
-            if not hasattr(cls, attr):
+        # 限制子类仅能覆盖 attributes 中的属性和 run 方法
+        allowed_overrides = set(Script.attributes.keys()).union({"run"})
+        # 检查子类定义的成员
+        for name in cls.__dict__:
+            if name not in allowed_overrides and not name.startswith("__"):
                 raise TypeError(
-                    f"{cls.__name__} without an implementation for '{attr}'"
+                    f"{cls.__name__} is not allowed to override '{name}'. "
+                    f"Only {', '.join(allowed_overrides)} can be overridden."
                 )
-            # 检查子类属性的类型是否匹配
+        # 如果未设置脚本名称则自动解析类名
+        if not hasattr(cls, 'name'):
+            setattr(cls, 'name', parse_classname(cls.__name__))
+        else:
+            cls.name = cls.name.lower()
+        # 检查 attributes 中定义的属性是否被正确覆盖
+        for attr, attr_type in cls.attributes.items():
+            if not hasattr(cls, attr):
+                raise TypeError(f"{cls.__name__} is missing required attribute '{attr}'")
             if not isinstance(getattr(cls, attr), attr_type):
                 raise TypeError(
-                    f"{cls.__name__} attr '{attr}' must be type {attr_type.__name__}"
+                    f"{cls.__name__} attribute '{attr}' must be of type {attr_type.__name__}"
                 )
-
-
+        # 手动检查子类是否实现了抽象方法 run 并确保它是方法
+        run_method = getattr(cls, 'run', None)
+        if run_method == Script.run or not callable(run_method):
+            raise TypeError(f"{cls.__name__} must implement the abstract method 'run'.")
+        # 检查 run 函数参数是否对应正确
+        signature = inspect.signature(run_method)
+        parameters = signature.parameters
+        cls.params = []
+        for key, attr in parameters.items():
+            if key == "self":
+                continue
+            annotation = attr.annotation
+                # 检查是否为 Annotated 类型
+            if get_origin(annotation) is Annotated:
+                basetype = get_args(annotation)[0]  # 提取基础类型
+                metadata = get_args(annotation)[1:]  # 提取备注
+                defaultval = None if attr.default is inspect._empty else attr.default
+                cls.params.append((key, basetype, metadata, defaultval))
+            else:
+                raise TypeError(f"{cls.__name__} 'run' param '{key}' must be Annotated")
 # 获取所有的脚本列表
 def get_scripts() -> dict:
+    
     scripts_path = os.path.join(os.path.dirname(__file__), "../scripts")
     script_classes = {}
 
@@ -60,15 +110,15 @@ def get_scripts() -> dict:
                         if relative_folder not in script_classes:
                             script_classes[relative_folder] = []
                         script_classes[relative_folder].append(obj)
-
     return script_classes
 
 
 # 通过脚本名获取脚本
 def get_script(name: str) -> Optional[Script]:
+    name = name.lower()
     script_list = get_scripts()
     for scripts in script_list.values():
         for Script in scripts:
-            if name == Script.__name__:
+            if name == Script.name:
                 return Script
     return None

@@ -1,11 +1,11 @@
 import base64
 from module.api import Script
+from typing import Annotated
 
-
-class morsedecode(Script):
+class MorseDecode(Script):
     """对给定字符串进行莫斯解码"""
 
-    def run(self, text: str, encode: str = "utf-8"):
+    def run(self, text: Annotated[str, "需要解码的文本"]):
         morse_dict = {
             ".-": "A",
             "-...": "B",
