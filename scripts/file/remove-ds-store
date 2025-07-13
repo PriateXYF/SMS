@@ -1,0 +1,14 @@
+#!/usr/local/bin/python3
+import os
+import subprocess
+
+print("\t\t【脚本说明 : 清除所有.DS_Store文件】\n")
+
+for filepath,dirnames,filenames in os.walk('.'):
+	if '.DS_Store' in filenames:
+		filename = f'{filepath}/.DS_Store'
+		print(filename)
+		subprocess.run(["trash", filename])
+		
+print("\n\t\t     【已清除全部文件】")
+subprocess.run(["open", "raycast://confetti"])

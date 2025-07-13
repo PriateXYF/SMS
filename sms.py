@@ -17,13 +17,12 @@ def cli():
 @click.argument("key")
 def search(key):
     """search a script by name or description"""
-    click.echo(f"Initialized the database {key}")
     script_list = get_scripts()
     for mod, scripts in script_list.items():
-        for Script in scripts:
-            script = Script()
-            print(script)
-
+        for i, Script in enumerate([ S for S in scripts if key in S.__doc__.lower() or key in S.name]):
+            click.echo(f"""{i+1:03d}. {Script.name} {
+            ' '.join([ f'[{attr}]' for attr in Script.get_args()])
+            } : {Script.__doc__}""")
 
 # 使用脚本
 @cli.command(context_settings=dict(ignore_unknown_options=True))
